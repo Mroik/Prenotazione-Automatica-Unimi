@@ -6,6 +6,13 @@ import requests
 from bs4 import BeautifulSoup
 
 from . import const
+from .exceptions import (
+    TokenRetrivalError,
+    LoginError,
+    EasystaffError,
+    LessonsFetchingError,
+    BookingError,
+)
 
 
 class EasyStaff:
@@ -24,7 +31,8 @@ class EasyStaff:
             ("client_id", "client"),
             ("redirect_uri", const.CAS_REDIRECT_URI),
         ))
-        assert prelogin_res.status_code == 200
+        if prelogin_res.status_code != 200:
+            raise TokenRetrivalError
         soup = BeautifulSoup(prelogin_res.text, "html.parser")
         lt_code = soup.find(id="hLT")["value"]
         exec_code = soup.find(id="hExecution")["value"]
@@ -45,8 +53,9 @@ class EasyStaff:
             "_eventId": "submit",
             "_responsive": "responsive"
         })
-        assert auth_res.status_code == 200
-        assert "Autenticazione non riuscita" not in auth_res
+        if auth_res.status_code != 200:
+            raise LoginError("Either the credentials are incorrect or the server is down")
+        return "Autenticazione non riuscita" not in auth_res
 
     def _easystaff_login(self):
         check_res = self.session.get("https://orari-be.divsi.unimi.it/EasyAcademy/auth/auth_app.php", params=(
@@ -55,33 +64,39 @@ class EasyStaff:
             ("redirect_uri", const.CAS_REDIRECT_URI),
             ("scope", "openid profile")
         ))
-        assert check_res.status_code == 200
+        if check_res.status_code != 200:
+            raise EasystaffError
 
         exp = re.compile(r"access_token=(.*)")
         groups = exp.findall(check_res.text)
-        assert len(groups) > 0
+        if len(groups) == 0:
+            raise LoginError("Couldn't fetch access_token (if this gives error the login code might need changes)")
         self._access_token = groups[0]
 
         login_res = self.session.post(
             "https://easystaff.divsi.unimi.it/PortaleStudenti/login.php?from=&from_include=",
             data={"access_token": self._access_token}
         )
-        assert login_res.status_code == 200
+        if login_res.status_code != 200:
+            raise EasystaffError
 
     def get_all_lectures(self):
         lt_code, exec_code = self._get_prelogin_params()
-        self._cas_login(lt_code, exec_code)
+        if not self._cas_login(lt_code, exec_code):
+            raise LoginError("Credentials could be incorrect!")
         self._easystaff_login()
         lectures_page_res = self.session.get("https://easystaff.divsi.unimi.it/PortaleStudenti/index.php", params=(
             ("view", "prenotalezione"),
             ("include", "prenotalezione"),
             ("_lang", "it"),
         ))
-        assert lectures_page_res.status_code == 200
+        if lectures_page_res.status_code != 200:
+            raise LessonsFetchingError
 
         exp = re.compile(r"JSON\.parse\(\'(.*)\'")  # bad code inherited from bad code
         groups = exp.findall(lectures_page_res.text)
-        assert len(groups) > 0
+        if len(groups) == 0:
+            return []
         days = json.loads(groups[0])
 
         available_bookings = []
@@ -104,7 +119,8 @@ class EasyStaff:
             ('id_entries', f"[{lecture_id}]"),
             ('id_btn_element', f"{lecture_id}"),
         ))
-        assert booking_res.status_code == 200
+        if booking_res.status_code != 200:
+            raise BookingError
         res = booking_res.json()
         if res["result"] == "Success":
             return True
