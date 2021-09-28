@@ -32,3 +32,19 @@ class ResourceFetchError(LibraryError):
 
 class LibraryBookingError(LibraryError):
     """Raised when there's an error with the booking"""
+
+
+class SilabError(Exception):
+    """Raised when there's an error with the silab code"""
+
+
+class TimeslotFetchingError(SilabError):
+    """Raised when the timeslots can't be fetched"""
+
+
+class SilabLoginError(SilabError):
+    """Raised when there's an error with the login"""
+
+
+class SilabBookingError(SilabError):
+    """Raised when there's an error with the booking"""

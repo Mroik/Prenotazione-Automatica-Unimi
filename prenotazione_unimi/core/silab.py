@@ -1,6 +1,12 @@
 import requests
 
 from . import const
+from .exceptions import (
+    TimeslotFetchingError,
+    SilabLoginError,
+    SilabBookingError,
+    SilabError,
+)
 
 
 class SiLab:
@@ -16,7 +22,8 @@ class SiLab:
             resp = self.session.post(const.ENDPOINT_SILAB_SLOTS, headers={
                 "authorization": "Bearer " + self.token
             })
-        assert resp.status_code == 200
+        if resp.status_code != 200:
+            raise TimeslotFetchingError
         return resp.json()["rooms"]
 
     def login(self, username, password):
@@ -27,12 +34,15 @@ class SiLab:
                     "password": password
                 }
         )
-        assert resp.status_code == 200
+        if resp.status_code != 200:
+            raise SilabLoginError
         self.token = resp.json()["jwt"]
-        assert self.token != ""
+        if self.token == "":
+            raise SilabLoginError("Changes in the code could be needed")
 
     def book_slot(self, slotid):
-        assert self.token is not None
+        if self.token is None:
+            raise SilabLoginError("Login is required")
 
         resp = self.session.post(
                 const.ENDPOINT_SILAB_BOOK + str(slotid),
@@ -42,7 +52,8 @@ class SiLab:
         )
         if resp.status_code == 504:
             return False
-        assert resp.status_code == 200
+        if resp.status_code != 200:
+            raise SilabBookingError
         return True if resp.json()["status"] == "success" else False
 
     def unbook_slot(self, slotid):
@@ -56,7 +67,8 @@ class SiLab:
         )
         if resp.status_code == 504:
             return False
-        assert resp.status_code == 200
+        if resp.status_code != 200:
+            raise SilabBookingError
         return True if resp.json()["status"] == "success" else False
 
     def get_penalty(self):
@@ -65,12 +77,14 @@ class SiLab:
         resp = self.session.post(const.ENDPOINT_SILAB_SLOTS, headers={
             "authorization": "Bearer " + self.token
         })
-        assert resp.status_code == 200
+        if resp.status_code != 200:
+            raise SilabError
         resp = resp.json()["rooms"][0]
         return resp["absences"], resp["maxbookings"]
 
     def confirm_silab(self, room_id):
-        assert self.token is not None
+        if self.token is None:
+            raise SilabLoginError("Login required")
         resp = self.session.post(
                 const.ENDPOINT_SILAB_CONFIRM + str(room_id),
                 headers={
