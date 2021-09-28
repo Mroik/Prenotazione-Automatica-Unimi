@@ -6,6 +6,11 @@ import requests
 from bs4 import BeautifulSoup
 
 from . import const
+from .exceptions import (
+    LibraryLoginError,
+    ResourceFetchError,
+    LibraryBookingError,
+)
 
 
 class Library:
@@ -16,8 +21,7 @@ class Library:
         self.session = requests.Session()
 
     def _get_token(self):
-        resp = self.session.get(const.LIBRARY_ENDPOINT,
-                                params=(("include", "form"),))
+        resp = self.session.get(const.LIBRARY_ENDPOINT, params=(("include", "form"),))
         token = ""
         for x in BeautifulSoup(resp.text, "html.parser").find_all("input"):
             try:
@@ -26,10 +30,11 @@ class Library:
                     break
             except Exception:
                 pass
-        assert token != ""
+        if token == "":
+            raise LibraryLoginError("Couldn't fetch CSRF token")
         return token
 
-    def _get_risorsa(self,library, service, token, timeslot):
+    def _get_risorsa(self, library, service, token, timeslot):
         resp = self.session.post(
                 const.LIBRARY_ENDPOINT,
                 data={
@@ -57,7 +62,8 @@ class Library:
                 break
             else:
                 risorsa = None
-        assert risorsa != None
+        if risorsa is None:
+            raise ResourceFetchError
         return risorsa
 
     def get_available_libraries(self):
@@ -131,7 +137,8 @@ class Library:
             if x["name"] == "entry":
                 entry = x["value"]
                 break
-        assert entry != None
+        if entry is None:
+            raise LibraryBookingError("Entry not found")
 
         resp= self.session.post(
                 const.LIBRARY_ENDPOINT,
@@ -143,4 +150,5 @@ class Library:
                 },
                 params=(("include", "confirmed"),)
         )
-        assert resp.status_code == 200
+        if resp.status_code != 200:
+            raise LibraryBookingError

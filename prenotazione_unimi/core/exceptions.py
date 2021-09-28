@@ -16,3 +16,19 @@ class LessonsFetchingError(EasystaffError):
 
 class BookingError(EasystaffError):
     """Raised when there's an error during the booking"""
+
+
+class LibraryError(Exception):
+    """Raised when there's an error with the library code"""
+
+
+class LibraryLoginError(LibraryError):
+    """Error with the login"""
+
+
+class ResourceFetchError(LibraryError):
+    """Raised when timeslots can't be fetched"""
+
+
+class LibraryBookingError(LibraryError):
+    """Raised when there's an error with the booking"""
