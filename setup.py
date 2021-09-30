@@ -24,7 +24,8 @@ setuptools.setup(
     python_requires=">=3.7",
     install_requires=[
         "beautifulsoup4>=4.9.3",
-        "requests>=2.25.1"
+        "requests>=2.25.1",
+        "lxml"
     ],
     entry_points={
         "console_scripts": [
